@@ -30,7 +30,7 @@ init : () -> ( Model, Cmd Msg )
 init () =
     ( { phrase = Loading
       }
-    , fetchLgtmPhrase
+    , fetchLgtmPhrase GotPhrase
     )
 
 
@@ -64,7 +64,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ChangePhrase ->
-            ( { model | phrase = Loading }, fetchLgtmPhrase )
+            ( { model | phrase = Loading }, fetchLgtmPhrase GotPhrase )
 
         GotPhrase result ->
             case result of
@@ -83,11 +83,11 @@ update msg model =
 -- CMD
 
 
-fetchLgtmPhrase : Cmd Msg
-fetchLgtmPhrase =
+fetchLgtmPhrase : (Result Error PhrasePayload -> Msg) -> Cmd Msg
+fetchLgtmPhrase toMsg =
     Http.get
         { url = "http://localhost:3000/lgtm"
-        , expect = Http.expectJson GotPhrase phrasePayloadDecoder
+        , expect = Http.expectJson toMsg phraseDecoder
         }
 
 
@@ -113,29 +113,27 @@ view model =
 
 viewPhrase : Phrase -> Html Msg
 viewPhrase phrase =
-    let
-        string =
-            case phrase of
-                Success p ->
-                    p
+    case phrase of
+        Success payload ->
+            Html.span
+                [Attributes.title <| "An LGTM quote for your PR review! Source:" ++ payload.source
+                ]
+                [ Html.text payload.phrase]
+        Loading ->
+            Html.text "Loading..."
+        Error err ->
+            case err of
+                BadStatus status ->
+                    status
+                        |> String.fromInt
+                        |> String.append "Http error: "
+                        |> Html.text
+                _ ->
+                    Html.text "Unknown error"
+        
 
-                Loading ->
-                    "Loading..."
-
-                Error err ->
-                    case err of
-                        BadStatus status ->
-                            status
-                                |> String.fromInt
-                                |> String.append "Http error: "
-
-                        _ ->
-                            "Unknown error"
-    in
-    Html.text string
-
-phrasePayloadDecoder : Decoder PhrasePayload
-phrasePayloadDecoder =
+phraseDecoder : Decoder PhrasePayload
+phraseDecoder =
     Decode.map3 PhrasePayload
         (Decode.field "phrase" Decode.string)
         (Decode.field "source" Decode.string)
