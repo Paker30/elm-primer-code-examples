@@ -19,30 +19,33 @@ const phrases = [
 ];
 
 const server = http.createServer((req, res) => {
-  // Super liberal CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "*");
-  res.setHeader("Access-Control-Allow-Headers", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type");
   res.setHeader("Access-Control-Max-Age", "86400");
 
-  // Handle preflight requests
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
     return;
   }
 
-  if (Math.random() > 0.8) {
-    res.writeHead(500);
-    res.end();
-  } else if (req.url === "/lgtm" && req.method === "GET") {
-    const phrase = phrases[Math.floor(Math.random() * phrases.length)];
-    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end(phrase);
-  } else {
-    res.writeHead(404);
-    res.end();
+  if (Math.random() > 0.8 && req.method === "GET" && req.url === "/lgtm") {
+    res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ error: "randomized failure" }));
+    return;
   }
+
+  if (req.url === "/lgtm" && req.method === "GET") {
+    const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+    const payload = { phrase, source: "random", length: phrase.length };
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify(payload));
+    return;
+  }
+
+  res.writeHead(404);
+  res.end();
 });
 
 server.listen(3000, () =>
