@@ -7,6 +7,7 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Set exposing (Set)
 import Task
+import Time
 
 -- PROGRAM
 
@@ -24,8 +25,7 @@ init () =
     ( { today = Advent (Year 2025) 12
     , openSlots = Set.empty
     }
-    -- TODO: Somehow get current date
-    , Cmd.none
+    , Task.perform GotDay getDay
     )
 
 -- MODEL
@@ -39,19 +39,22 @@ type Day
     = Advent Year Int
     | Christmas Year
     | Other Year
+    | Unset
 
 type Year
     = Year Int
 
-toYear : Day -> Int
+toYear : Day -> Maybe Int
 toYear day =
     case day of
         Advent (Year y) _ ->
-            y
+            Just y
         Christmas (Year y) ->
-            y
+            Just y
         Other (Year y) ->
-            y
+            Just y
+        Unset ->
+            Nothing
 
 type Gift
     = Available Char
@@ -86,6 +89,9 @@ giftsForToday day =
         Christmas _ ->
             allGifts
                 |> Dict.map (\_ gift -> Available gift)
+        Unset ->
+            allGifts
+                |> Dict.map(\_ _ -> NotYet)
 
 -- MSG
 
@@ -109,6 +115,38 @@ update msg model =
         GotDay day ->
             ({ model | today = day }, Cmd.none)
 
+
+-- CMD
+
+getDay : Task.Task x Day
+getDay =
+    Task.map2 initDay Time.here Time.now
+
+initDay : Time.Zone -> Time.Posix -> Day
+initDay zone time =
+    let
+        month : Time.Month
+        month =
+            Time.toMonth zone time
+
+        year : Int
+        year =
+            Time.toYear zone time
+    in
+    case month of
+        Time.Dec ->
+            let
+                day : Int
+                day =
+                    Time.toDay zone time
+            in
+            if day > 23 then
+                Christmas (Year year)
+            else
+                Advent (Year year) day
+        _ ->
+            Other (Year year)
+    
 -- VIEW
 
 view : Model -> Html Msg
@@ -152,7 +190,15 @@ viewHeader day =
     Html.div
         [ Attr.class "w-full sm:h-[16vmin] text-center tex-white"
         ]
-        [ Html.text <| "Advent " ++ String.fromInt (toYear day)
+        [ Html.text
+            (day
+                |> toYear
+                |> Maybe.map
+                    (\year ->
+                        "Advent " ++ String.fromInt year
+                    )
+                |> Maybe.withDefault ""
+            )
         ]
 
 viewDay : Day -> Html msg
@@ -175,6 +221,8 @@ viewDay day =
                         |> String.append "December "
                 Other _ ->
                     "Wait until December!"
+                Unset ->
+                    "..."
         ]
 
 viewGiftSlot : Int -> Bool -> Gift -> msg -> Html msg
